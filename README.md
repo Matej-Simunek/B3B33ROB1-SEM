@@ -27,18 +27,27 @@ Robot drží kontrastní obruč, kterou musí provléct bludištěm / tyčkou na
 - Řádný termín 5. 1. 2027 23:59 (−1 b / 3 dny zpoždění), nejzazší 24. 1. 2027 23:59.
 - Rezervace robota: BRUTE. Konzultace: e-mail všem třem cvičícím.
 
+## Spuštění (jeden skript)
+```bash
+uv run python scripts/run.py --sim --puzzle D              # celá scéna v simulaci (bez kamery a robotu)
+python scripts/run.py                                      # jen rotace stolku z kamery (bez kalibrace)
+python scripts/run.py --puzzle A                           # suchý běh: detekce, plán, dosažitelnost
+python scripts/run.py --puzzle A --execute --speed 0.3     # ostrý běh s potvrzením, robot se pohne
+```
+Postup u robotu krok za krokem: [docs/ROBOT_CHECKLIST.md](docs/ROBOT_CHECKLIST.md), plán a nejistoty: [docs/PLAN.md](docs/PLAN.md).
+
 ## Prostředí
 ```bash
 uv sync            # vytvoří .venv (Python 3.12) a nainstaluje závislosti
-uv run pytest      # testy toolboxu
-uv run python exercises/lab03/01_detect_aruco.py
+uv run pytest tests/test_maze_*.py     # testy projektu (cca 1,5 min, včetně simulace celého řetězce)
 ```
+Bez `uv` (robotový PC): `python3 -m venv .venv --system-site-packages && pip install -r requirements.txt`.
 
 ## Struktura
-- `src/robotics_toolbox/` – základ převzatý z `robotics_labs` (SE(2)/SE(3), roboti, IK, plánování, ArUco/perception, renderery)
-- `exercises/` – příklady z cvičení (lab03 = ArUco/kalibrace/homografie, lab05 = IK, lab06 = plánování)
-- `tests/` – testy z cvičení (část odpovídá nedokončeným domácím úkolům, proto mohou padat)
-- `scripts/` – skripty pro robota a kameru (vlastní)
-- `data/` – kalibrační a experimentální data
-- `docs/ROB1-2025-hw/` – kopie https://github.com/pilcsimo/ROB1-2025-hw (STEP modely obruče, adaptérů, bludišť, výkresy v mm, G-code, ArUco základny)
-- `report/` – technická zpráva
+- `src/robotics_toolbox/maze/` – projekt: `camera.py`, `aruco_base.py`, `detect.py`, `table_motion.py`, `camera_model.py`,
+  `calibration.py`, `plate_pose.py`, `puzzles.py`, `planning.py`, `executor.py`, `pipeline.py`, `sim.py`, `sim_run.py`
+- `src/robotics_toolbox/` – základ převzatý z `robotics_labs` (SE(2)/SE(3), roboti, IK, plánování, renderery)
+- `scripts/` – `run.py` (vše najednou), `collect_calibration.py`, `calibrate.py`, `capture_image.py`, `detect_all.py`,
+  `camera_info.py`, `reachability_map.py`
+- `exercises/`, `tests/` – cvičení a testy z labů (část odpovídá nedokončeným domácím úkolům, mohou padat)
+- `data/` – snímky, sekvence, kalibrace; `docs/` – podklady (`ROB1-2025-hw`), plán; `report/` – technická zpráva

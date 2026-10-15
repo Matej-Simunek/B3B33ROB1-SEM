@@ -155,7 +155,8 @@ def run_scene(frames, camera, tool, robot_model, puzzle, q_now, execute_with=Non
 
 # ---------------------------------------------------------------- CLI orchestration
 def run(replay: Path | None = None, duration: float = 10.0, fps: float = 5.0, save: bool = True,
-        puzzle: str | None = None, calibration: Path = CALIBRATION, do_execute: bool = False) -> Result | TableMotion:
+        puzzle: str | None = None, calibration: Path = CALIBRATION, do_execute: bool = False,
+        speed_scale: float = 0.5) -> Result | TableMotion:
     """Without a calibration: table rotation only (pixel mode). With one: the full pipeline for `puzzle`."""
     if replay is not None:
         frames = list(replay_frames(replay))
@@ -179,14 +180,17 @@ def run(replay: Path | None = None, duration: float = 10.0, fps: float = 5.0, sa
     from ctu_crs import CRS93
 
     camera, tool = load_calibration(calibration)
+    assert 0 < speed_scale <= 1.0, "speed must be in (0, 1]"
     if do_execute:
         robot = CRS93()
-        robot.initialize(home=False)
+        homed = input("Has the robot been homed since the control unit was powered on? [y/N] (N = it will home now and MOVE) ")
+        robot.initialize(home=homed.strip().lower() != "y")
         q_now = robot.get_q()
         confirm = lambda plan: input(f"Execute {plan.duration:.0f} s trajectory? Keep the E-stop at hand. Type 'yes': ") == "yes"  # noqa: E731
         try:
-            return run_scene(frames, camera, tool, robot, puzzle, q_now, execute_with=robot, confirm=confirm)
+            return run_scene(frames, camera, tool, robot, puzzle, q_now, execute_with=robot, confirm=confirm,
+                             speed_scale=speed_scale)
         finally:
             robot.close()
     model = CRS93(tty_dev=None)
-    return run_scene(frames, camera, tool, model, puzzle, model.q_home)
+    return run_scene(frames, camera, tool, model, puzzle, model.q_home, speed_scale=speed_scale)

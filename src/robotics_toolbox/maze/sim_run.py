@@ -20,14 +20,14 @@ def hoop_pose_after(result: Result, robot_model, tool: Tool) -> np.ndarray:
 
 
 def run_simulation(puzzle: str = "A", direction: str = "left", omega_deg: float = 4.0, verbose: bool = True,
-                   plate0=PLATE0, yaw0=YAW0) -> tuple[Result, dict]:
+                   plate0=PLATE0, yaw0=YAW0, speed_scale=0.5) -> tuple[Result, dict]:
     omega = np.deg2rad(omega_deg) * (1 if direction == "left" else -1)
     camera, tool, robot_model = sim_camera(), Tool(SIM_TCP), CRS93(tty_dev=None)
     frames = list(sim_frames(camera, AXIS, omega, yaw0, plate0, duration=8.0, fps=2.0, t0=100.0))
     clock = VirtualClock(frames[-1][0] + 1.0)
     sim_robot = SimRobot(robot_model, clock, robot_model.q_home, joint_speed_limits(robot_model, 1.0))
     result = run_scene(frames, camera, tool, robot_model, puzzle, sim_robot.get_q(), execute_with=sim_robot, clock=clock,
-                       now=clock.time, planning_lag=6.0)
+                       now=clock.time, planning_lag=6.0, speed_scale=speed_scale)
 
     info = {"planned": result.plan is not None and result.plan.success, "success": False}
     if result.execution is not None and result.execution.completed:

@@ -24,13 +24,14 @@ parser.add_argument("--direction", choices=["left", "right"], default="left", he
 parser.add_argument("--calibration", type=Path, default=CALIBRATION)
 parser.add_argument("--duration", type=float, default=10.0)
 parser.add_argument("--fps", type=float, default=5.0)
+parser.add_argument("--speed", type=float, default=0.5, help="joint speed as a fraction of the controller default (<= 1)")
 parser.add_argument("--no-save", action="store_true")
 args = parser.parse_args()
 
 if args.sim:
     from robotics_toolbox.maze.sim_run import run_simulation
 
-    run_simulation(args.puzzle or "A", args.direction)
+    run_simulation(args.puzzle or "A", args.direction, speed_scale=args.speed)
 else:
     run(args.replay, args.duration, args.fps, save=not args.no_save, puzzle=args.puzzle,
-        calibration=args.calibration, do_execute=args.execute)
+        calibration=args.calibration, do_execute=args.execute, speed_scale=args.speed)

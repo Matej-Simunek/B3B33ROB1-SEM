@@ -12,6 +12,10 @@ provede pohyb robotu CRS93. Bez robotu a kamery jde vše spustit v simulaci / z 
 - **puzzle** – počátek v patě tyčky (střed desky + posun `PUZZLE_FOOT_OFFSET`), z = 34 mm nad rovinou markerů.
 - **obruč (TCP)** – počátek ve středu kroužku, osa z = normála kroužku (směr průchodu), osa x = k rukojeti.
 
+## Stav
+Etapy 1–8 jsou implementované a otestované v simulaci (`scripts/run.py --sim`, `tests/test_maze_*.py`).
+Nic z toho zatím neběželo na skutečném robotu ani kameře; k ověření viz [ROBOT_CHECKLIST.md](ROBOT_CHECKLIST.md).
+
 ## Etapy
 1. **Základ** (hotovo na `main`): kamera, ArUco, detekce obruče, odhad rotace stolku (`table_motion.py`).
 2. **Modely puzzle A–D** (`puzzles.py`): osa tyčky jako polyline/oblouky z výkresů, hrana 10×10 mm,
