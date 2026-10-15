@@ -1,7 +1,10 @@
 """Grab one image from the CRS93 camera and save it to data/images (robot does not move)."""
 import sys
-from datetime import datetime
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from datetime import datetime
 
 import cv2
 
