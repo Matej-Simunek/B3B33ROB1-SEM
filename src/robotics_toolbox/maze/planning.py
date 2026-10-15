@@ -108,36 +108,92 @@ def follow_path(robot, tool, path, T_robot_puzzle_at, q0, t0, vmax, v_path=0.02)
     return traj, ""
 
 
-def approach(robot, tool, entry_pose, T_robot_puzzle_at, q_now, t_now, vmax, margin=1.0):
-    """Joint-space move from q_now to the (moving) entry pose. Returns (trajectory, q_entry, t_entry, reason)."""
-    t_entry = t_now + 3.0
-    q_entry = None
-    for _ in range(8):
-        sols = _ik_in_limits(robot, flange_pose_for_hoop(T_robot_puzzle_at(t_entry) @ entry_pose, tool))
-        if not sols:
-            return [], None, t_entry, "entry pose of the hoop is not reachable"
-        q_entry = _nearest(sols, q_now)
-        t_new = t_now + float(np.max(np.abs(q_entry - q_now) / vmax)) + margin
-        if abs(t_new - t_entry) < 1e-2:
-            break
-        t_entry = t_new
-    n = max(int(np.ceil((t_entry - t_now) / 0.25)), 2)
-    traj = []
+ROD_CLEARANCE = 0.05  # hoop center stays this far from the rod centerline while approaching [m]
+LIFT_HEIGHTS = (0.10, 0.18)  # via point above the entry pose, tried when the direct approach is not safe
+
+
+def _segment(robot, tool, q0, q1, t0, t1, pose_at, rod):
+    """Joint-space linear interpolation q0->q1 over [t0, t1]; returns (samples, reason)."""
+    n = max(int(np.ceil((t1 - t0) / 0.25)), 2)
+    samples = []
     for s in np.linspace(0.0, 1.0, n + 1):
-        q = q_now + s * (q_entry - q_now)
-        if robot.fk(q)[2, 3] < MIN_FLANGE_HEIGHT:
-            return [], None, t_entry, "approach would go too close to the table"
-        traj.append((t_now + s * (t_entry - t_now), q))
-    return traj, q_entry, t_entry, ""
+        q, t = q0 + s * (q1 - q0), t0 + s * (t1 - t0)
+        flange = robot.fk(q)
+        hoop = (flange @ tool.T_flange_hoop)[:3, 3]
+        if flange[2, 3] < MIN_FLANGE_HEIGHT or hoop[2] < MIN_HOOP_HEIGHT:
+            return [], "approach would go too close to the table"
+        if rod is not None:
+            local = np.linalg.inv(pose_at(t)) @ np.append(hoop, 1.0)
+            if np.min(np.linalg.norm(rod - local[:3], axis=1)) < ROD_CLEARANCE:
+                return [], "approach would pass too close to the puzzle"
+        samples.append((t, q))
+    return samples, ""
+
+
+def _entry_config(robot, tool, entry_pose, pose_at, t, q_ref):
+    sols = _ik_in_limits(robot, flange_pose_for_hoop(pose_at(t) @ entry_pose, tool))
+    return _nearest(sols, q_ref) if sols else None
+
+
+def approach(robot, tool, entry_pose, T_robot_puzzle_at, q_now, t_now, vmax, margin=1.0, rod=None, horizon=45.0):
+    """Move from q_now to the (moving) entry pose, directly or via a point above it.
+
+    Scans candidate arrival times t_entry (the table rotates, so reachability depends on t_entry) and returns the
+    earliest safe route; the robot stands still at q_now until it has to leave. Returns (trajectory, q_entry,
+    t_entry, reason).
+    """
+    reason = "entry pose of the hoop is not reachable"
+
+    def timed(q0, q1):
+        return float(np.max(np.abs(q1 - q0) / vmax)) + margin
+
+    def build(t_entry, q_entry, lift):
+        if lift is None:
+            dt = timed(q_now, q_entry)
+            t_s = t_entry - dt
+            if t_s < t_now - 1e-9:
+                return None, ""
+            seg, why = _segment(robot, tool, q_now, q_entry, t_s, t_entry, T_robot_puzzle_at, rod)
+            return ([(t_now, q_now)] if t_s > t_now else []) + seg if not why else None, why
+        lifted = entry_pose.copy()
+        lifted[2, 3] += lift
+        t_v = t_entry - 3.0
+        for _ in range(3):
+            q_via = _entry_config(robot, tool, lifted, T_robot_puzzle_at, t_v, q_entry)
+            if q_via is None:
+                return None, ""
+            t_v = t_entry - timed(q_via, q_entry)
+        dt1 = timed(q_now, q_via)
+        t_s1 = t_v - dt1
+        if t_s1 < t_now - 1e-9:
+            return None, ""
+        first, why1 = _segment(robot, tool, q_now, q_via, t_s1, t_v, T_robot_puzzle_at, rod)
+        second, why2 = _segment(robot, tool, q_via, q_entry, t_v, t_entry, T_robot_puzzle_at, rod)
+        if why1 or why2:
+            return None, why1 or why2
+        return ([(t_now, q_now)] if t_s1 > t_now else []) + first + second[1:], ""
+
+    for t_entry in np.arange(t_now + 1.0, t_now + horizon, 0.5):
+        q_entry = _entry_config(robot, tool, entry_pose, T_robot_puzzle_at, t_entry, q_now)
+        if q_entry is None:
+            continue
+        for lift in (None,) + LIFT_HEIGHTS:
+            traj, why = build(t_entry, q_entry, lift)
+            if traj:
+                return traj, q_entry, float(t_entry), ""
+            reason = why or reason
+    return [], None, t_now + horizon, reason
 
 
 def plan(robot, tool: Tool, puzzle: str, T_robot_puzzle_at, q_now, t_now=0.0, speed_scale=0.5, v_path=0.02, hints=None) -> Plan:
     """Plan approach + insertion for one puzzle; tries several handle directions and returns the fastest success."""
     vmax = joint_speed_limits(robot, speed_scale)
     best, last_reason = None, "no candidate"
+    rod = puzzles.centerline(puzzle, 0.004)
     for hint in hints if hints is not None else hint_candidates(puzzle):
         path = puzzles.hoop_path(puzzle, handle_hint=hint)
-        a_traj, q_entry, t_entry, reason = approach(robot, tool, path[0], T_robot_puzzle_at, q_now, t_now, vmax)
+        a_traj, q_entry, t_entry, reason = approach(robot, tool, path[0], T_robot_puzzle_at, q_now, t_now, vmax,
+                                                    rod=rod)
         if reason:
             last_reason = reason
             continue
