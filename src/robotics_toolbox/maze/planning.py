@@ -10,11 +10,11 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 from robotics_toolbox.maze import puzzles
-from robotics_toolbox.maze.constants import PLATFORM_HEIGHT
+from robotics_toolbox.maze.constants import HOOP_FLOOR, PLATFORM_HEIGHT
 
 SUCCESS_HEIGHT = 0.04  # hoop must end lower than this above the ArUco plate
 MIN_FLANGE_HEIGHT = 0.06  # flange above the table [m]
-MIN_HOOP_HEIGHT = 0.045  # hoop center above the table [m]
+MIN_HOOP_HEIGHT = HOOP_FLOOR  # hoop center never goes below this height above the table [m]
 TIME_LIMIT = 120.0  # seconds per attempt
 MAX_JOINT_STEP = 0.6  # rad between consecutive waypoints; larger means a branch flip
 
@@ -216,6 +216,9 @@ def plan(robot, tool: Tool, puzzle: str, T_robot_puzzle_at, q_now, t_now=0.0, sp
         poses = [robot.fk(q) for _, q in traj]
         cand.min_flange_z = float(min(T[2, 3] for T in poses))
         cand.min_hoop_z = float(min((T @ tool.T_flange_hoop)[2, 3] for T in poses))
+        if cand.min_hoop_z < HOOP_FLOOR - 1e-3:
+            last_reason = f"hoop would go to {cand.min_hoop_z * 100:.1f} cm, below the allowed minimum {HOOP_FLOOR * 100:.1f} cm"
+            continue
         if best is None or cand.duration < best.duration:
             best = cand
     return best if best is not None else Plan(False, last_reason)

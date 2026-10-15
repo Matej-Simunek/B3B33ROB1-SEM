@@ -5,3 +5,6 @@ MARKER_EDGE = 0.040  # black square of the ArUco marker, measured
 IMAGE_SIZE = (1920, 1200)  # width, height of camera-crs93
 PUZZLE_RAISE = 0.034  # puzzle foot sits this much above the ArUco marker plane
 PUZZLE_BASE_HEIGHT = PLATFORM_HEIGHT + PUZZLE_RAISE  # puzzle foot above the table (0.067 m)
+
+END_CLEARANCE = 0.035  # final hoop center above the top of the ArUco plate; the hoop never goes lower [m]
+HOOP_FLOOR = PLATFORM_HEIGHT + END_CLEARANCE  # lowest allowed hoop center above the table (0.068 m)

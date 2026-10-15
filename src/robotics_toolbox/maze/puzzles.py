@@ -6,9 +6,11 @@ Puzzle E (30/45 degree spatial bends) is not modelled.
 """
 import numpy as np
 
+from robotics_toolbox.maze.constants import END_CLEARANCE, PLATFORM_HEIGHT, PUZZLE_BASE_HEIGHT
+
 ROD_WIDTH = 0.010
 APPROACH = 0.06  # start of the hoop path beyond the free end of the rod
-END_Z = 0.002  # final hoop height above the puzzle foot
+END_Z = PLATFORM_HEIGHT + END_CLEARANCE - PUZZLE_BASE_HEIGHT  # final hoop height in the puzzle frame (0.001 m)
 ORIENTATION_SIGMA = 0.015  # [m] smoothing length of the hoop orientation at kinks
 Y_SIGN_C = 1.0  # direction of the second bend of puzzle C (not verified, see PLAN.md)
 

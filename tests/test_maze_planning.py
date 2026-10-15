@@ -64,3 +64,14 @@ def test_rotating_table_lets_the_robot_wait_for_a_reachable_angle(robot):
     omega = np.deg2rad(6.0)
     moving = plan_with_wait(robot, Tool(), "D", plate_at(0.45, 0.0, 0.0, omega), robot.q_home, omega=omega)
     assert moving.success, moving.reason
+
+
+@pytest.mark.parametrize("name", ["A", "B", "C"])
+def test_hoop_never_goes_below_the_floor(robot, name):
+    from robotics_toolbox.maze.constants import HOOP_FLOOR
+
+    result = plan(robot, Tool(), name, plate_at(0.40, 0.0, 0.0), robot.q_home)
+    assert result.success, result.reason
+    zs = [(robot.fk(q) @ Tool().T_flange_hoop)[2, 3] for _, q in result.trajectory]
+    assert min(zs) >= HOOP_FLOOR - 1e-3  # 6.8 cm above the table = 3.5 cm above the ArUco plate
+    assert zs[-1] == pytest.approx(HOOP_FLOOR, abs=2e-3)
