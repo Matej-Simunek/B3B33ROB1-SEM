@@ -10,9 +10,12 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 from robotics_toolbox.maze import puzzles
-from robotics_toolbox.maze.constants import HOOP_FLOOR, PLATFORM_HEIGHT
+from robotics_toolbox.maze.constants import END_CLEARANCE, HOOP_FLOOR, PLATFORM_HEIGHT
 
 SUCCESS_HEIGHT = 0.04  # hoop must end lower than this above the ArUco plate
+if END_CLEARANCE >= SUCCESS_HEIGHT:
+    raise ValueError(f"END_CLEARANCE in maze/constants.py is {END_CLEARANCE * 100:.1f} cm, but the hoop must end lower than "
+                     f"{SUCCESS_HEIGHT * 100:.0f} cm above the ArUco plate for the attempt to count: set it below 0.04")
 MIN_FLANGE_HEIGHT = 0.06  # flange above the table [m]
 MIN_HOOP_HEIGHT = HOOP_FLOOR  # hoop center never goes below this height above the table [m]
 TIME_LIMIT = 120.0  # seconds per attempt
