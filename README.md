@@ -40,5 +40,5 @@ uv run python exercises/lab03/01_detect_aruco.py
 - `tests/` – testy z cvičení (část odpovídá nedokončeným domácím úkolům, proto mohou padat)
 - `scripts/` – skripty pro robota a kameru (vlastní)
 - `data/` – kalibrační a experimentální data
-- `docs/` – podklady, zadání
+- `docs/ROB1-2025-hw/` – kopie https://github.com/pilcsimo/ROB1-2025-hw (STEP modely obruče, adaptérů, bludišť, výkresy v mm, G-code, ArUco základny)
 - `report/` – technická zpráva
