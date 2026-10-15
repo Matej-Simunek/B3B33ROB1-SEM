@@ -46,6 +46,9 @@ robot.set_speed_relative(args.speed)
 base_q = robot.get_q()
 base = robot.fk(base_q)
 print(f"base pose: flange at {base[:3, 3].round(3)} m")
+if base[:3, 2] @ np.array([0.0, 0.0, -1.0]) < 0.95:
+    sys.exit("the flange does not point down (the home pose does not): run scripts/jog_to_view.py first "
+             "and bring the hoop into the camera view with the flange pointing down")
 img = robot.grab_image()
 hoop = detect_hoop(img)
 if hoop is None:

@@ -13,8 +13,10 @@ Prostředí: `git pull && python3 -m venv .venv --system-site-packages && source
 
 ## 1. Kalibrace kamera → robot (robot se hýbe!)
 1. Zapni robot (červený vypínač + žlutý Arm Power), E-stop po ruce, klec zavřená.
-2. Obruč na robotu. Ručně (`move_crs93 q1 10 ...`) nastav pozici s celou obručí v záběru kamery, ≥ 15 cm nad stolem.
-3. `python scripts/collect_calibration.py --speed 0.2` (`--no-home`, pokud je robot už nahomovaný). Skript sám jezdí
+2. Obruč na robotu. V pozici `home` míří příruba vodorovně dopředu, kroužek není shora vidět. Spusť
+   `python scripts/jog_to_view.py` (příkaz `down` nastaví přírubu dolů, pak `x`/`y`/`z`/`yaw` po malých krocích;
+   po každém pohybu vypíše, jestli kamera vidí kroužek a kde), dokud není celý kroužek v záběru ≥ 15 cm nad stolem. Skončit `q`.
+3. `python scripts/collect_calibration.py --speed 0.2 --no-home` (robot už je nahomovaný a stojí v pozici z kroku 2). Skript sám jezdí
    kolem startovní pózy, v každé pozici najde obruč v obraze a uloží `data/calibration/samples.json`.
 4. `python scripts/calibrate.py` – vypíše chybu reprojekce (cíl < 2–3 px), výšku kamery (měřeno 1,17 m), ohnisko (~4500 px)
    a TCP obruče vůči přírubě; uloží `data/calibration/camera_robot.json`.
