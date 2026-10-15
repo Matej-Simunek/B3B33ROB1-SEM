@@ -64,6 +64,15 @@ class Plan:
     min_flange_z: float = float("nan")
 
     @property
+    def idle_time(self) -> float:
+        """Seconds from the start of the plan until the robot first moves (waiting for a reachable table angle)."""
+        q0 = self.trajectory[0][1] if self.trajectory else None
+        for t, q in self.trajectory:
+            if np.max(np.abs(q - q0)) > 1e-4:
+                return t - self.trajectory[0][0]
+        return 0.0
+
+    @property
     def duration(self) -> float:
         return self.trajectory[-1][0] - self.trajectory[0][0] if self.trajectory else 0.0
 
@@ -254,14 +263,14 @@ def quick_feasible(robot, tool, puzzle, T_robot_puzzle_at, t_entry, hints, v_pat
 
 
 def plan_with_wait(robot, tool, puzzle, T_robot_puzzle_at, q_now, t_now=0.0, omega=0.0, max_wait=60.0,
-                   speed_scale=0.5, v_path=0.02, max_candidates=25) -> Plan:
+                   speed_scale=0.5, v_path=0.02, max_candidates=25, hints=None) -> Plan:
     """Like plan(), but the robot may wait (standing still) for the table to rotate into a reachable angle.
 
     The returned trajectory starts with the waiting samples so its timing is absolute. Start times are screened
     by a cheap IK check (the insertion starts a few seconds after the start, so several entry delays are tried);
     if the screening finds nothing, a coarse grid of start times is planned directly.
     """
-    hints = hint_candidates(puzzle)
+    hints = hint_candidates(puzzle) if hints is None else list(hints)
     step = 1.0 if abs(omega) < 1e-6 else float(np.clip(np.deg2rad(5.0) / abs(omega), 0.25, 1.0))
     waits = np.arange(0.0, max_wait + 1e-9, step)
 

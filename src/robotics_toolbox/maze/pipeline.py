@@ -106,10 +106,10 @@ def describe_scene(scene: Scene) -> None:
     print(f"  plate at last frame: xy = {pose[:2, 3].round(3)} m, yaw = {np.rad2deg(np.arctan2(pose[1, 0], pose[0, 0])):.1f} deg")
 
 
-def make_plan(scene: Scene, robot, tool, puzzle: str, q_now, t_start: float, speed_scale=0.5) -> planning.Plan:
+def make_plan(scene: Scene, robot, tool, puzzle: str, q_now, t_start: float, speed_scale=0.5, hints=None) -> planning.Plan:
     pose_at = lambda t: puzzle_frame(scene.tracker.pose(t))  # noqa: E731
     omega = scene.motion.omega if scene.motion.rotating else 0.0
-    return planning.plan_with_wait(robot, tool, puzzle, pose_at, q_now, t_start, omega, speed_scale=speed_scale)
+    return planning.plan_with_wait(robot, tool, puzzle, pose_at, q_now, t_start, omega, speed_scale=speed_scale, hints=hints)
 
 
 def describe_plan(plan: planning.Plan, t_start: float) -> None:
@@ -120,6 +120,7 @@ def describe_plan(plan: planning.Plan, t_start: float) -> None:
     waits = [p for p in plan.phases if p == "wait"]
     print(f"plan OK: {len(plan.trajectory)} waypoints, duration {plan.duration:.1f} s"
           + (" (starts with waiting for a reachable table angle)" if waits else ""))
+    print(f"  the robot starts moving {plan.idle_time:.0f} s after the start (waiting for a reachable table angle)")
     print(f"  handle direction in the puzzle frame: {np.round(plan.hint, 2)}")
     print(f"  lowest hoop center {plan.min_hoop_z * 100:.1f} cm and lowest flange {plan.min_flange_z * 100:.1f} cm above the table "
           "(check against the real heights of the puzzle foot / plate)")
@@ -152,13 +153,29 @@ def run_scene(frames, camera, tool, robot_model, puzzle, q_now, execute_with=Non
     if confirm is not None and not confirm(plan):
         print("aborted by the user, robot not moved")
         return Result(scene, plan)
-    # re-plan from the current time and the current joints, then run in real time
+    # re-plan from the current time and the current joints. Fast first try: only the handle direction found before;
+    # if that fails, all directions. The start lag must be longer than the planning itself, else the plan is stale.
     q_now = execute_with.get_q()
-    t_start = clock.time() + planning_lag
-    plan = make_plan(scene, robot_model, tool, puzzle, q_now, t_start, speed_scale)
-    if not plan.success:
-        print(f"re-planning failed: {plan.reason}")
+    new_plan, took, lag, ready = None, 0.0, 4.0, False
+    for hints in ([np.array(plan.hint)], None):
+        lag = 4.0
+        for _ in range(3):
+            wall0 = time.perf_counter()
+            new_plan = make_plan(scene, robot_model, tool, puzzle, q_now, clock.time() + lag, speed_scale, hints=hints)
+            took = time.perf_counter() - wall0
+            if not new_plan.success:
+                break
+            if took <= lag - 0.5:
+                ready = True
+                break
+            lag = 1.5 * took + 1.0  # planning took longer than the lag: plan again with a bigger lag
+        if ready:
+            break
+    plan = new_plan
+    if not ready:
+        print(f"re-planning failed: {plan.reason if not plan.success else 'planning is too slow'}")
         return Result(scene, plan)
+    print(f"re-planned in {took:.1f} s; the robot starts moving in about {lag + plan.idle_time - took:.0f} s")
     report = execute(execute_with, plan.trajectory, clock)
     print("execution " + ("finished" if report.completed else f"ABORTED: {report.reason}") + f", max joint error {report.max_error:.3f} rad")
     return Result(scene, plan, report)
