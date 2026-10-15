@@ -21,6 +21,16 @@ def hoop_pose_after(result: Result, robot_model, tool: Tool) -> np.ndarray:
 
 def run_simulation(puzzle: str = "A", direction: str = "left", omega_deg: float = 4.0, verbose: bool = True,
                    plate0=PLATE0, yaw0=YAW0, speed_scale=0.5) -> tuple[Result, dict]:
+    from robotics_toolbox.maze import planning
+
+    saved, planning.Z_COMPENSATION = planning.Z_COMPENSATION, 0.0  # the simulated robot is perfect: no sag to cancel
+    try:
+        return _run_simulation(puzzle, direction, omega_deg, verbose, plate0, yaw0, speed_scale)
+    finally:
+        planning.Z_COMPENSATION = saved
+
+
+def _run_simulation(puzzle, direction, omega_deg, verbose, plate0, yaw0, speed_scale):
     omega = np.deg2rad(omega_deg) * (1 if direction == "left" else -1)
     camera, tool, robot_model = sim_camera(), Tool(SIM_TCP), CRS93(tty_dev=None)
     frames = list(sim_frames(camera, AXIS, omega, yaw0, plate0, duration=8.0, fps=2.0, t0=100.0))
