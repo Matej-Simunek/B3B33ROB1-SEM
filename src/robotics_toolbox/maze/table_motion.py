@@ -1,7 +1,7 @@
 """Estimate the rotation of the table from ArUco markers tracked over time.
 
-Image convention used here: x right, y UP (image y is flipped), angles positive counter-clockwise
-as seen by the camera. Everything is in pixels at the marker plane.
+Coordinates are any right-handed 2D frame (image with y flipped up, or the robot xy plane): angles are
+positive counter-clockwise. The pipeline uses the robot xy plane (see plate_pose.py).
 
 Model: the plate rotates rigidly about an axis c. For marker i observed at time t_k
     p_ik = c + R(theta_k) d_i
