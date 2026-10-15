@@ -179,7 +179,9 @@ def run_scene(frames, camera, tool, robot_model, puzzle, q_now, execute_with=Non
     print(f"re-planned in {took:.1f} s; the robot starts moving in about {lag + plan.idle_time - took:.0f} s")
     report = execute(execute_with, plan.trajectory, clock)
     print("execution " + ("finished" if report.completed else f"ABORTED: {report.reason}") + f", max joint error {report.max_error:.3f} rad")
-    try:  # record the run: planned vs measured joints, for offline analysis
+    try:  # record the real run: planned vs measured joints, for offline analysis
+        if not isinstance(clock, WallClock):
+            raise OSError("simulation: no log")
         RUNS.mkdir(parents=True, exist_ok=True)
         path = RUNS / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{puzzle}.json"
         path.write_text(json.dumps({"puzzle": puzzle, "completed": report.completed, "reason": report.reason, "speed_scale": speed_scale,
@@ -187,7 +189,8 @@ def run_scene(frames, camera, tool, robot_model, puzzle, q_now, execute_with=Non
                                     "phases": plan.phases, "log": report.log}))
         print(f"run log saved to {path}")
     except OSError as e:
-        print(f"could not save the run log: {e}")
+        if isinstance(clock, WallClock):
+            print(f"could not save the run log: {e}")
     return Result(scene, plan, report)
 
 
