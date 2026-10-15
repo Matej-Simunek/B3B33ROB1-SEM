@@ -186,26 +186,43 @@ def plan_with_wait(robot, tool, puzzle, T_robot_puzzle_at, q_now, t_now=0.0, ome
                    speed_scale=0.5, v_path=0.02, max_candidates=25) -> Plan:
     """Like plan(), but the robot may wait (standing still) for the table to rotate into a reachable angle.
 
-    The returned trajectory starts with the waiting samples so its timing is absolute.
+    The returned trajectory starts with the waiting samples so its timing is absolute. Start times are screened
+    by a cheap IK check (the insertion starts a few seconds after the start, so several entry delays are tried);
+    if the screening finds nothing, a coarse grid of start times is planned directly.
     """
     hints = hint_candidates(puzzle)
     step = 1.0 if abs(omega) < 1e-6 else float(np.clip(np.deg2rad(5.0) / abs(omega), 0.25, 1.0))
-    reason = "no start time within the waiting window gives a feasible plan"
-    tried = 0
-    for wait in np.arange(0.0, max_wait + 1e-9, step):
-        if not entry_reachable(robot, tool, puzzle, T_robot_puzzle_at, t_now + wait + 5.0, hints):
+    waits = np.arange(0.0, max_wait + 1e-9, step)
+
+    def attempts():
+        screened = []
+        for wait in waits:
+            passing = []
+            for entry_delay in (3.0, 6.0, 10.0):
+                passing = quick_feasible(robot, tool, puzzle, T_robot_puzzle_at, t_now + wait + entry_delay, hints, v_path)
+                if passing:
+                    break
+            if passing:
+                screened.append(wait)
+                yield wait, passing, 0
+        # fallback: all handle directions at screened start times, then an unscreened coarse grid
+        for wait in screened[:6] + list(waits[:: max(int(5.0 / step), 1)]):
+            yield wait, hints, 1
+
+    reason, tried, seen = "no start time within the waiting window gives a feasible plan", [0, 0], set()
+    for wait, candidates, phase in attempts():
+        if tried[phase] >= max_candidates:
             continue
-        passing = quick_feasible(robot, tool, puzzle, T_robot_puzzle_at, t_now + wait + 5.0, hints, v_path)
-        if not passing:
+        key = (round(float(wait), 3), len(candidates))
+        if key in seen:
             continue
-        result = plan(robot, tool, puzzle, T_robot_puzzle_at, q_now, t_now + wait, speed_scale, v_path, passing)
-        tried += 1
+        seen.add(key)
+        result = plan(robot, tool, puzzle, T_robot_puzzle_at, q_now, t_now + wait, speed_scale, v_path, candidates)
+        tried[phase] += 1
         if result.success and result.duration + wait <= TIME_LIMIT:
             if wait > 0:
                 result.trajectory = [(t_now, q_now)] + result.trajectory
                 result.phases = ["wait"] + result.phases
             return result
         reason = result.reason or reason
-        if tried >= max_candidates:
-            break
     return Plan(False, reason)
