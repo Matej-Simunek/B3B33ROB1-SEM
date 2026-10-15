@@ -94,3 +94,8 @@ def detect_green(image: np.ndarray):
     if contour is None:
         return None
     return contour, cv2.minAreaRect(contour)
+
+
+def hoop_usable(circle: Circle | None, min_coverage=0.5) -> bool:
+    """Enough of the ring is visible to trust the fitted circle (a half circle is enough, also at the border)."""
+    return circle is not None and circle.coverage >= min_coverage

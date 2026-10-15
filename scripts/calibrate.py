@@ -14,37 +14,68 @@ from ctu_crs import CRS93
 from robotics_toolbox.maze.calibration import fit_calibration_robust
 from robotics_toolbox.maze.constants import CAMERA_HEIGHT
 
+import argparse
+
+import cv2
+
+from robotics_toolbox.maze.detect import detect_hoop, hoop_usable
+
 root = Path(__file__).resolve().parents[1] / "data" / "calibration"
-path = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "samples.json"
+ap = argparse.ArgumentParser()
+ap.add_argument("samples", nargs="?", type=Path, default=root / "samples.json")
+ap.add_argument("--min-coverage", type=float, default=0.5,
+                help="fraction of the ring circumference that must be visible (0.5 = half circle)")
+ap.add_argument("--radius-tolerance", type=float, default=0.2, help="allowed relative radius deviation from the median")
+args = ap.parse_args()
+path = args.samples
 if not path.exists():
     sys.exit(f"{path} not found: first collect samples with scripts/collect_calibration.py (it moves the robot, "
              "see docs/ROBOT_CHECKLIST.md, step 1)")
 samples = json.loads(path.read_text())
 
-# Re-detect the hoop in the saved images with the current (robust) detector and drop incomplete / wrong detections.
-import cv2
-
-from robotics_toolbox.maze.detect import detect_hoop, hoop_fully_visible
-
+# Re-detect the hoop in the saved images with the current (robust) detector and drop wrong detections.
 kept, dropped = [], []
+thumbs = []
 for k, smp in enumerate(samples):
     img_path = path.parent / smp["image"] if "image" in smp else None
     if img_path is not None and img_path.exists():
-        found = detect_hoop(cv2.imread(str(img_path)))
-        if found is None or not hoop_fully_visible(found):
-            dropped.append((k, "ring not fully visible" if found is not None else "no ring found"))
+        image = cv2.imread(str(img_path))
+        found = detect_hoop(image)
+        status = "ok"
+        if found is None:
+            status = "no ring found"
+        elif not hoop_usable(found, args.min_coverage):
+            status = f"only {found.coverage * 100:.0f} % of the ring visible"
+        line = f"  [{k:2d}] {status:34s}" + (f" center ({found.center[0]:.0f}, {found.center[1]:.0f}) r {found.radius:.0f} px, "
+                                             f"coverage {found.coverage:.2f}" if found is not None else "")
+        print(line)
+        thumb = image.copy()
+        if found is not None:
+            cv2.circle(thumb, tuple(found.center.astype(int)), int(found.radius), (0, 0, 255) if status == "ok" else (0, 165, 255), 6)
+        cv2.putText(thumb, f"{k} {status}", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 255), 6)
+        thumbs.append(cv2.resize(thumb, (480, 300)))
+        if status != "ok":
+            dropped.append((k, status))
             continue
         smp = {**smp, "pixel": found.center.tolist(), "radius": found.radius}
     kept.append(smp)
+if thumbs:
+    cols = 4
+    rows = [np.hstack(thumbs[r:r + cols] + [np.zeros_like(thumbs[0])] * (cols - len(thumbs[r:r + cols])))
+            for r in range(0, len(thumbs), cols)]
+    cv2.imwrite(str(path.parent / "detection_debug.png"), np.vstack(rows))
+    print(f"overview of all detections saved to {path.parent / 'detection_debug.png'}")
 if kept:
     median_r = float(np.median([smp["radius"] for smp in kept]))
-    good = [smp for smp in kept if 0.85 * median_r <= smp["radius"] <= 1.15 * median_r]
+    lo, hi = (1 - args.radius_tolerance) * median_r, (1 + args.radius_tolerance) * median_r
+    good = [smp for smp in kept if lo <= smp["radius"] <= hi]
     dropped += [(None, f"radius {smp['radius']:.0f} px far from the median {median_r:.0f} px") for smp in kept if smp not in good]
     kept = good
 print(f"detection: {len(kept)} usable samples, {len(dropped)} dropped {dropped[:8]}")
 samples = kept
 if len(samples) < 8:
-    sys.exit("fewer than 8 usable samples: collect more (hoop fully in view, no other blue objects)")
+    sys.exit("fewer than 8 usable samples: see the list above and data/calibration/detection_debug.png "
+             "(try --min-coverage 0.5), or collect more (ring in view, no other blue objects)")
 if len(samples) < 8:
     sys.exit(f"only {len(samples)} samples in {path}, at least 8 are needed (run collect_calibration.py again)")
 qs = np.array([s["q"] for s in samples])

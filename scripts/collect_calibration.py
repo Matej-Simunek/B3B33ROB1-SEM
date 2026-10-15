@@ -3,7 +3,7 @@
 SAFETY: this MOVES THE ROBOT. Keep the emergency stop at hand, clear the workspace, low speed is used.
 Procedure: bring the hoop (by hand-guided jogging, e.g. `move_crs93 q1 10`) to a pose where the whole ring is
 visible in the camera and >= 15 cm above the table, then start this script. It moves around that pose
-(+-8 cm in x/y, up to +12 cm up, +-30 deg yaw) and stores (joints, hoop center in pixels).
+(+-5 cm in x/y, up to +12 cm up, +-20 deg yaw; the ring must stay inside the image) and stores (joints, hoop center in pixels).
 
     python scripts/collect_calibration.py [--speed 0.2] [--no-home]
 """
@@ -28,8 +28,8 @@ parser.add_argument("--speed", type=float, default=0.2, help="relative joint spe
 parser.add_argument("--no-home", action="store_true", help="skip homing (robot already homed)")
 args = parser.parse_args()
 
-OFFSETS = [(dx, dy, dz, yaw) for dz in (0.0, 0.06, 0.12) for dx in (-0.08, 0.0, 0.08) for dy in (-0.08, 0.0, 0.08)
-           for yaw in (-0.5, 0.0, 0.5)]
+OFFSETS = [(dx, dy, dz, yaw) for dz in (0.0, 0.06, 0.12) for dx in (-0.05, 0.0, 0.05) for dy in (-0.05, 0.0, 0.05)
+           for yaw in (-0.35, 0.0, 0.35)]
 rng = np.random.default_rng(1)
 OFFSETS = [OFFSETS[i] for i in sorted(rng.choice(len(OFFSETS), 30, replace=False))]
 
