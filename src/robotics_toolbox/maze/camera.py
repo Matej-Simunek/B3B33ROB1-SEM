@@ -24,3 +24,28 @@ def grab_image(name: str = CAMERA_NAME, exposure_time: float = 0.0) -> np.ndarra
     """Grab a single BGR image."""
     with open_camera(name, exposure_time) as camera:
         return camera.grab_image()
+
+
+def stream(duration: float, fps: float = 5.0, name: str = CAMERA_NAME, exposure_time: float = 0.0):
+    """Yield (timestamp [s], BGR image) for `duration` seconds at about `fps`, camera kept open."""
+    import time
+
+    from pypylon import pylon
+
+    with open_camera(name, exposure_time) as camera:
+        cam = camera.camera
+        cam.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
+        t0 = time.monotonic()
+        period = 1.0 / fps
+        next_t = 0.0
+        try:
+            while (t := time.monotonic() - t0) < duration:
+                result = cam.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
+                try:
+                    if result.GrabSucceeded() and t >= next_t:
+                        yield t, camera.converter.Convert(result).GetArray().copy()
+                        next_t = t + period
+                finally:
+                    result.Release()
+        finally:
+            cam.StopGrabbing()
