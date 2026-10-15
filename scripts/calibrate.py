@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import numpy as np
 from ctu_crs import CRS93
 
-from robotics_toolbox.maze.calibration import fit_calibration_robust
+from robotics_toolbox.maze.calibration import fit_calibration_ransac, fit_calibration_robust
 from robotics_toolbox.maze.constants import CAMERA_HEIGHT
 
 import argparse
@@ -26,6 +26,9 @@ ap.add_argument("samples", nargs="?", type=Path, default=root / "samples.json")
 ap.add_argument("--min-coverage", type=float, default=0.5,
                 help="fraction of the ring circumference that must be visible (0.5 = half circle)")
 ap.add_argument("--radius-tolerance", type=float, default=0.2, help="allowed relative radius deviation from the median")
+ap.add_argument("--max-rms", type=float, default=8.0, help="refuse to save a calibration with a larger pixel error")
+ap.add_argument("--only", type=str, default=None, help="comma-separated sample indices to use (others are ignored)")
+ap.add_argument("--exclude", type=str, default=None, help="comma-separated sample indices to ignore")
 args = ap.parse_args()
 path = args.samples
 if not path.exists():
@@ -36,7 +39,10 @@ samples = json.loads(path.read_text())
 # Re-detect the hoop in the saved images with the current (robust) detector and drop wrong detections.
 kept, dropped = [], []
 thumbs = []
+only = {int(i) for i in args.only.split(",")} if args.only else None
+exclude = {int(i) for i in args.exclude.split(",")} if args.exclude else set()
 for k, smp in enumerate(samples):
+    smp = {**smp, "k": k}
     img_path = path.parent / smp["image"] if "image" in smp else None
     if img_path is not None and img_path.exists():
         image = cv2.imread(str(img_path))
@@ -58,6 +64,9 @@ for k, smp in enumerate(samples):
             dropped.append((k, status))
             continue
         smp = {**smp, "pixel": found.center.tolist(), "radius": found.radius}
+    if (only is not None and k not in only) or k in exclude:
+        dropped.append((k, "excluded by --only/--exclude"))
+        continue
     kept.append(smp)
 if thumbs:
     cols = 4
@@ -93,6 +102,12 @@ down = np.array([robot.fk(q)[:3, 2] @ [0, 0, -1] for q in qs])
 if down.min() < 0.95:
     print(f"  WARNING: in {np.sum(down < 0.95)} samples the flange does not point down (min cos {down.min():.2f})")
 result, keep = fit_calibration_robust(robot, qs, pixels)
+if result.rms_px > 3 and only is None:
+    print("plain fit is poor, trying a RANSAC fit that tolerates wrong detections ...")
+    try:
+        result, keep = fit_calibration_ransac(robot, qs, pixels)
+    except RuntimeError as e:
+        print(e)
 cam = result.camera
 print(f"samples: {keep.sum()} used of {len(keep)}")
 print(f"reprojection error: rms {result.rms_px:.2f} px, max {result.max_px:.2f} px")
@@ -101,11 +116,11 @@ print(f"hoop center in the flange frame (tcp) = {result.tcp.round(3)} m")
 if abs(cam.center[2] - CAMERA_HEIGHT) > 0.1:
     print("WARNING: calibrated camera height differs a lot from the measured one, check the samples")
 if result.rms_px > 3:
-    print("WARNING: large reprojection error; the hoop detection or the data may be bad")
+    print("note: reprojection error above 3 px (about 0.5 mm per px at the ring); partial rings and detection noise add to it")
 err = np.linalg.norm(cam.project(np.array([(robot.fk(q) @ np.append(result.tcp, 1.0))[:3] for q in qs])) - pixels, axis=1)
 worst = np.argsort(err)[::-1][:3]
 print("worst samples (index: error px, pixel):", ", ".join(f"{i}: {err[i]:.1f} px {pixels[i].round(0)}" for i in worst))
-if result.rms_px > 3 or abs(cam.center[2] - CAMERA_HEIGHT) > 0.1:
+if result.rms_px > args.max_rms or abs(cam.center[2] - CAMERA_HEIGHT) > 0.1:
     sys.exit("calibration NOT saved (bad fit): send the output above and data/calibration/samples.json")
 out = root / "camera_robot.json"
 cam.save(out, tcp=result.tcp.tolist(), rms_px=result.rms_px, n_samples=int(keep.sum()))

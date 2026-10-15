@@ -52,3 +52,19 @@ def test_calibration_converges_from_a_wrong_tcp_guess(true_tcp):
     assert result.rms_px < 2.0
     assert np.linalg.norm(result.tcp[:2] - tcp[:2]) < 0.015
     assert abs(result.camera.center[2] - 1.17) < 0.05
+
+
+def test_real_robot_samples_give_a_consistent_calibration():
+    """Hoop detections from the real CRS93 (day 1); indices from the visual check of the detections:
+    these are the samples where the ring was really found (others latched onto the robot wrist)."""
+    import json
+    from pathlib import Path
+
+    samples = json.loads((Path(__file__).parent / "data" / "robot1_calibration_samples.json").read_text())
+    robot = CRS93(tty_dev=None)
+    idx = [0, 2, 3, 5, 11, 12, 19, 20, 22]
+    result = fit_calibration(robot, np.array([samples[i]["q"] for i in idx]), np.array([samples[i]["pixel"] for i in idx]))
+    assert 4300 < result.camera.f < 4800
+    assert 1.12 < result.camera.center[2] < 1.20  # measured 1.17 m
+    assert 0.10 < np.linalg.norm(result.tcp[:2]) < 0.16
+    assert result.rms_px < 12

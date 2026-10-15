@@ -42,3 +42,9 @@ def test_real_photo():
     c = detect_hoop(cv2.imread(str(path)))
     assert c.center == pytest.approx([878, 665], abs=3.0)
     assert hoop_fully_visible(c)
+
+
+def test_dark_robot_barrel_is_not_taken_for_the_ring():
+    img = np.full((1200, 1920, 3), 225, np.uint8)
+    cv2.circle(img, (1500, 1000), 200, (95, 75, 60), -1)  # dark bluish-grey wrist barrel, V < 100
+    assert detect_hoop(img) is None

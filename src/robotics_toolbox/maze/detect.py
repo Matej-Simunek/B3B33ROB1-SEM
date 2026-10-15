@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 # HSV ranges (OpenCV: H 0-179). Tuned on data/images/01_hoop_above_base.png.
-BLUE = ((90, 80, 40), (120, 255, 200))
+BLUE = ((92, 70, 100), (118, 255, 235))  # ring: H~102, S~100, V~148; the dark robot barrel has V<100
 GREEN = ((60, 60, 40), (95, 255, 220))
 
 
@@ -69,7 +69,7 @@ def fit_circle_ransac(points: np.ndarray, r_range=(100.0, 300.0), tol=3.0, itera
     return Circle(best[0], best[1], int(inl.sum()), coverage)
 
 
-def detect_hoop(image: np.ndarray, r_range=(100.0, 300.0)) -> Circle | None:
+def detect_hoop(image: np.ndarray, r_range=(140.0, 260.0)) -> Circle | None:
     """Circle through the blue ring of the hoop (robust to other blue objects and a partly hidden ring)."""
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, *BLUE)
