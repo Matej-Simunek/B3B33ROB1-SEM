@@ -34,6 +34,9 @@ def _keypoints() -> dict[str, np.ndarray]:
 
 
 PUZZLES = tuple(_keypoints())
+# A, B, C can be threaded with the ring staying horizontal (rod slopes are <= 45 deg, the ring is 62 mm wide for a
+# 10 mm rod); only D has a horizontal arm at its free end and needs the ring to turn (the task variant with rotation).
+HORIZONTAL_HOOP = {"A", "B", "C"}
 
 
 def centerline(name: str, step: float = 0.002) -> np.ndarray:
@@ -60,7 +63,7 @@ def _smooth_directions(dirs: np.ndarray, sigma_samples: float) -> np.ndarray:
     return out / np.linalg.norm(out, axis=1, keepdims=True)
 
 
-def hoop_path(name: str, handle_hint=(0.0, 1.0, 0.0), step: float = 0.004) -> list[np.ndarray]:
+def hoop_path(name: str, handle_hint=(0.0, 1.0, 0.0), step: float = 0.004, horizontal: bool | None = None) -> list[np.ndarray]:
     """Poses T_puzzle_hoop of the ring center from beyond the free end down to the foot.
 
     Hoop frame: z = ring normal = direction of travel, x = from ring center towards the handle,
@@ -80,9 +83,14 @@ def hoop_path(name: str, handle_hint=(0.0, 1.0, 0.0), step: float = 0.004) -> li
     positions = positions[positions[:, 2] > END_Z + 1e-9] if len(positions) > 1 else positions
     positions = np.vstack([positions, [line[0][0], line[0][1], END_Z]])
 
-    z_axes = np.gradient(positions, axis=0)
-    z_axes /= np.linalg.norm(z_axes, axis=1, keepdims=True)
-    z_axes = _smooth_directions(z_axes, ORIENTATION_SIGMA / step)
+    if horizontal is None:
+        horizontal = name in HORIZONTAL_HOOP
+    if horizontal:  # ring plane stays horizontal, only its center follows the rod
+        z_axes = np.tile([0.0, 0.0, -1.0], (len(positions), 1))
+    else:
+        z_axes = np.gradient(positions, axis=0)
+        z_axes /= np.linalg.norm(z_axes, axis=1, keepdims=True)
+        z_axes = _smooth_directions(z_axes, ORIENTATION_SIGMA / step)
     poses, x_prev = [], np.asarray(handle_hint, float)
     for pos, z in zip(positions, z_axes):
         x = x_prev - np.dot(x_prev, z) * z
