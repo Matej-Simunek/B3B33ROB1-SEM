@@ -16,7 +16,12 @@ from robotics_toolbox.maze.constants import CAMERA_HEIGHT
 
 root = Path(__file__).resolve().parents[1] / "data" / "calibration"
 path = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "samples.json"
+if not path.exists():
+    sys.exit(f"{path} not found: first collect samples with scripts/collect_calibration.py (it moves the robot, "
+             "see docs/ROBOT_CHECKLIST.md, step 1)")
 samples = json.loads(path.read_text())
+if len(samples) < 8:
+    sys.exit(f"only {len(samples)} samples in {path}, at least 8 are needed (run collect_calibration.py again)")
 qs = np.array([s["q"] for s in samples])
 pixels = np.array([s["pixel"] for s in samples])
 
