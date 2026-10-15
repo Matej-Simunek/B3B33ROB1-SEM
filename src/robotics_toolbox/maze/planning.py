@@ -168,8 +168,22 @@ def entry_reachable(robot, tool, puzzle, T_robot_puzzle_at, t, hints) -> bool:
     return False
 
 
+def quick_feasible(robot, tool, puzzle, T_robot_puzzle_at, t_entry, hints, v_path=0.02, spacing=0.015) -> list:
+    """Cheap pre-check: the handle directions for which IK exists at sparse waypoints."""
+    passing = []
+    for hint in hints:
+        path = puzzles.hoop_path(puzzle, handle_hint=hint, step=0.004)
+        pos = np.array([p[:3, 3] for p in path])
+        s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(pos, axis=0), axis=1))])
+        picks = np.unique(np.searchsorted(s, np.arange(0.0, s[-1], spacing)).clip(0, len(path) - 1))
+        if all(_ik_in_limits(robot, flange_pose_for_hoop(T_robot_puzzle_at(t_entry + s[k] / v_path) @ path[k], tool))
+               for k in picks):
+            passing.append(hint)
+    return passing
+
+
 def plan_with_wait(robot, tool, puzzle, T_robot_puzzle_at, q_now, t_now=0.0, omega=0.0, max_wait=60.0,
-                   speed_scale=0.5, v_path=0.02, max_candidates=6) -> Plan:
+                   speed_scale=0.5, v_path=0.02, max_candidates=25) -> Plan:
     """Like plan(), but the robot may wait (standing still) for the table to rotate into a reachable angle.
 
     The returned trajectory starts with the waiting samples so its timing is absolute.
@@ -181,7 +195,10 @@ def plan_with_wait(robot, tool, puzzle, T_robot_puzzle_at, q_now, t_now=0.0, ome
     for wait in np.arange(0.0, max_wait + 1e-9, step):
         if not entry_reachable(robot, tool, puzzle, T_robot_puzzle_at, t_now + wait + 5.0, hints):
             continue
-        result = plan(robot, tool, puzzle, T_robot_puzzle_at, q_now, t_now + wait, speed_scale, v_path, hints)
+        passing = quick_feasible(robot, tool, puzzle, T_robot_puzzle_at, t_now + wait + 5.0, hints, v_path)
+        if not passing:
+            continue
+        result = plan(robot, tool, puzzle, T_robot_puzzle_at, q_now, t_now + wait, speed_scale, v_path, passing)
         tried += 1
         if result.success and result.duration + wait <= TIME_LIMIT:
             if wait > 0:

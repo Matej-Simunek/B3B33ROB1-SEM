@@ -3,13 +3,10 @@ from scipy.spatial.transform import Rotation
 
 from robotics_toolbox.maze.camera_model import CameraModel
 from robotics_toolbox.maze.reachability import flange_pose
+from robotics_toolbox.maze.sim import SIM_TCP, sim_camera
 
-TRUE_TCP = np.array([0.18, 0.02, 0.05])
-
-
-def true_camera():
-    r = Rotation.from_euler("x", np.pi).as_matrix() @ Rotation.from_euler("z", 0.6).as_matrix()
-    return CameraModel(4400.0, r, -r @ np.array([0.45, 0.10, 1.17]))
+TRUE_TCP = SIM_TCP
+true_camera = sim_camera
 
 
 def sample_poses(robot):

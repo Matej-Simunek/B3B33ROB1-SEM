@@ -27,7 +27,7 @@ def grab_image(name: str = CAMERA_NAME, exposure_time: float = 0.0) -> np.ndarra
 
 
 def stream(duration: float, fps: float = 5.0, name: str = CAMERA_NAME, exposure_time: float = 0.0):
-    """Yield (timestamp [s], BGR image) for `duration` seconds at about `fps`, camera kept open."""
+    """Yield (time.monotonic() timestamp [s], BGR image) for `duration` seconds at about `fps`, camera kept open."""
     import time
 
     from pypylon import pylon
@@ -43,7 +43,7 @@ def stream(duration: float, fps: float = 5.0, name: str = CAMERA_NAME, exposure_
                 result = cam.RetrieveResult(5000, pylon.TimeoutHandling_ThrowException)
                 try:
                     if result.GrabSucceeded() and t >= next_t:
-                        yield t, camera.converter.Convert(result).GetArray().copy()
+                        yield t0 + t, camera.converter.Convert(result).GetArray().copy()
                         next_t = t + period
                 finally:
                     result.Release()
