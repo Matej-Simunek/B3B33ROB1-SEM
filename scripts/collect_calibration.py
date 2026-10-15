@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 from ctu_crs import CRS93
 
-from robotics_toolbox.maze.detect import detect_hoop
+from robotics_toolbox.maze.detect import detect_hoop, hoop_fully_visible
 from robotics_toolbox.maze.reachability import R_DOWN  # noqa: F401  (flange pointing down convention)
 
 OUT = Path(__file__).resolve().parents[1] / "data" / "calibration"
@@ -73,8 +73,8 @@ try:
         cv2.waitKey(1)
         image = robot.grab_image()
         found = detect_hoop(image)
-        if found is None:
-            print(f"[{k}] hoop not found, skipped")
+        if found is None or not hoop_fully_visible(found):
+            print(f"[{k}] hoop not found or not fully in the image, skipped")
             continue
         name = f"images/{len(samples):03d}.png"
         cv2.imwrite(str(OUT / name), image)

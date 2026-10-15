@@ -20,6 +20,31 @@ if not path.exists():
     sys.exit(f"{path} not found: first collect samples with scripts/collect_calibration.py (it moves the robot, "
              "see docs/ROBOT_CHECKLIST.md, step 1)")
 samples = json.loads(path.read_text())
+
+# Re-detect the hoop in the saved images with the current (robust) detector and drop incomplete / wrong detections.
+import cv2
+
+from robotics_toolbox.maze.detect import detect_hoop, hoop_fully_visible
+
+kept, dropped = [], []
+for k, smp in enumerate(samples):
+    img_path = path.parent / smp["image"] if "image" in smp else None
+    if img_path is not None and img_path.exists():
+        found = detect_hoop(cv2.imread(str(img_path)))
+        if found is None or not hoop_fully_visible(found):
+            dropped.append((k, "ring not fully visible" if found is not None else "no ring found"))
+            continue
+        smp = {**smp, "pixel": found.center.tolist(), "radius": found.radius}
+    kept.append(smp)
+if kept:
+    median_r = float(np.median([smp["radius"] for smp in kept]))
+    good = [smp for smp in kept if 0.85 * median_r <= smp["radius"] <= 1.15 * median_r]
+    dropped += [(None, f"radius {smp['radius']:.0f} px far from the median {median_r:.0f} px") for smp in kept if smp not in good]
+    kept = good
+print(f"detection: {len(kept)} usable samples, {len(dropped)} dropped {dropped[:8]}")
+samples = kept
+if len(samples) < 8:
+    sys.exit("fewer than 8 usable samples: collect more (hoop fully in view, no other blue objects)")
 if len(samples) < 8:
     sys.exit(f"only {len(samples)} samples in {path}, at least 8 are needed (run collect_calibration.py again)")
 qs = np.array([s["q"] for s in samples])
