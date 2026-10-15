@@ -76,3 +76,15 @@ class PlateTracker:
 
     def axis_xy(self) -> np.ndarray:
         return self.motion.center
+
+
+PUZZLE_FOOT_OFFSET = np.array([0.0, 0.0])  # puzzle foot in the plate frame (xy) [m]; tune from real images
+
+
+def puzzle_frame(T_robot_plate: np.ndarray, foot_offset=PUZZLE_FOOT_OFFSET) -> np.ndarray:
+    """T_robot_puzzle: the puzzle foot is PUZZLE_RAISE above the marker plane."""
+    from robotics_toolbox.maze.constants import PUZZLE_RAISE
+
+    local = np.eye(4)
+    local[:3, 3] = [foot_offset[0], foot_offset[1], PUZZLE_RAISE]
+    return T_robot_plate @ local
