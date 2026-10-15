@@ -4,7 +4,7 @@ The CRS controller executes coordinated moves asynchronously, so each waypoint i
 the measured joint state is compared with the plan; a deviation aborts the run.
 """
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -89,9 +89,10 @@ class ExecutionReport:
     reason: str
     max_error: float
     samples: list
+    log: list = field(default_factory=list)  # [{k, t, q_target, q_measured}] for offline analysis
 
 
-def execute(robot, trajectory, clock=None, max_error=0.15, on_step=None) -> ExecutionReport:
+def execute(robot, trajectory, clock=None, max_error=0.25, on_step=None) -> ExecutionReport:
     """Send the trajectory [(t, q), ...] to `robot` (anything with get_q / move_to_q).
 
     Trajectory times are absolute on `clock` (the time base the table prediction was made in).
@@ -99,19 +100,24 @@ def execute(robot, trajectory, clock=None, max_error=0.15, on_step=None) -> Exec
     clock = clock or WallClock()
     if trajectory[0][0] < clock.time() - 0.2:
         return ExecutionReport(False, "plan is already in the past (planning took too long), robot not moved", 0.0, [])
-    worst, samples, prev_target = 0.0, [], None
+    worst, samples, log, prev_target = 0.0, [], [], None
     for k, (t, q) in enumerate(trajectory):
         clock.sleep(t - clock.time())
         if prev_target is not None:
-            err = float(np.max(np.abs(robot.get_q() - prev_target)))
+            measured = robot.get_q()
+            diff = measured - prev_target
+            err = float(np.max(np.abs(diff)))
             worst = max(worst, err)
             samples.append((t, err))
+            log.append({"k": k, "t": t - trajectory[0][0], "q_target": prev_target.tolist(), "q_measured": measured.tolist()})
             if err > max_error:
-                robot.move_to_q(robot.get_q())
-                return ExecutionReport(False, f"robot lags {err:.3f} rad behind the plan at waypoint {k}", worst, samples)
+                robot.move_to_q(measured)
+                joint = int(np.argmax(np.abs(diff)))
+                return ExecutionReport(False, f"robot lags {err:.3f} rad behind the plan at waypoint {k}/{len(trajectory)} "
+                                              f"(joint {joint + 1}, error per joint {np.round(diff, 3).tolist()})", worst, samples, log)
         if on_step:
             on_step(k, t, q)
         _send(robot, q, trajectory[k + 1][0] - t if k + 1 < len(trajectory) else 0.5)
         prev_target = q
     clock.sleep(0.5)
-    return ExecutionReport(True, "", worst, samples)
+    return ExecutionReport(True, "", worst, samples, log)

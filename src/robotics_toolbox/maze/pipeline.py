@@ -17,6 +17,7 @@ from robotics_toolbox.maze.table_motion import TableMotion, fit_table_motion, ma
 
 ROOT = Path(__file__).resolve().parents[3]
 DATA = ROOT / "data" / "sequences"
+RUNS = ROOT / "data" / "runs"
 CALIBRATION = ROOT / "data" / "calibration" / "camera_robot.json"
 TOOL_Z = ROOT / "data" / "calibration" / "tool.json"  # measured ring height below the flange (scripts/measure_tool.py)
 
@@ -178,6 +179,15 @@ def run_scene(frames, camera, tool, robot_model, puzzle, q_now, execute_with=Non
     print(f"re-planned in {took:.1f} s; the robot starts moving in about {lag + plan.idle_time - took:.0f} s")
     report = execute(execute_with, plan.trajectory, clock)
     print("execution " + ("finished" if report.completed else f"ABORTED: {report.reason}") + f", max joint error {report.max_error:.3f} rad")
+    try:  # record the run: planned vs measured joints, for offline analysis
+        RUNS.mkdir(parents=True, exist_ok=True)
+        path = RUNS / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{puzzle}.json"
+        path.write_text(json.dumps({"puzzle": puzzle, "completed": report.completed, "reason": report.reason, "speed_scale": speed_scale,
+                                    "plan": [(t - plan.trajectory[0][0], q.tolist()) for t, q in plan.trajectory],
+                                    "phases": plan.phases, "log": report.log}))
+        print(f"run log saved to {path}")
+    except OSError as e:
+        print(f"could not save the run log: {e}")
     return Result(scene, plan, report)
 
 
