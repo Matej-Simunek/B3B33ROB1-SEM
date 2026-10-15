@@ -75,3 +75,15 @@ def test_hoop_never_goes_below_the_floor(robot, name):
     zs = [(robot.fk(q) @ Tool().T_flange_hoop)[2, 3] for _, q in result.trajectory]
     assert min(zs) >= HOOP_FLOOR - 1e-3  # 6.8 cm above the table = 3.5 cm above the ArUco plate
     assert zs[-1] == pytest.approx(HOOP_FLOOR, abs=2e-3)
+
+
+def test_z_compensation_raises_the_commanded_heights_but_not_the_plan(robot, monkeypatch):
+    from robotics_toolbox.maze import planning
+    from robotics_toolbox.maze.constants import HOOP_FLOOR
+
+    monkeypatch.setattr(planning, "Z_COMPENSATION", 0.02)
+    result = plan(robot, Tool(), "A", plate_at(0.40, 0.0, 0.0), robot.q_home)
+    assert result.success, result.reason
+    zs = [(robot.fk(q) @ Tool().T_flange_hoop)[2, 3] for _, q in result.trajectory]
+    assert min(zs) == pytest.approx(HOOP_FLOOR + 0.02, abs=2e-3)  # the robot is sent 2 cm higher
+    assert result.min_hoop_z == pytest.approx(HOOP_FLOOR, abs=2e-3)  # the planned height is unchanged

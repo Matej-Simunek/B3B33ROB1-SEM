@@ -11,6 +11,7 @@ from scipy.spatial.transform import Rotation
 
 from robotics_toolbox.maze import puzzles
 from robotics_toolbox.maze.constants import END_CLEARANCE, HOOP_FLOOR, PLATFORM_HEIGHT
+from robotics_toolbox.maze.tuning import Z_COMPENSATION
 
 SUCCESS_HEIGHT = 0.04  # hoop must end lower than this above the ArUco plate
 if END_CLEARANCE >= SUCCESS_HEIGHT:
@@ -40,7 +41,10 @@ class Tool:
 
 
 def flange_pose_for_hoop(T_robot_hoop: np.ndarray, tool: Tool) -> np.ndarray:
-    return T_robot_hoop @ np.linalg.inv(tool.T_flange_hoop)
+    """Flange pose that puts the hoop at T_robot_hoop, raised by Z_COMPENSATION (see tuning.py)."""
+    target = T_robot_hoop.copy()
+    target[2, 3] += Z_COMPENSATION
+    return target @ np.linalg.inv(tool.T_flange_hoop)
 
 
 def joint_speed_limits(robot, scale: float = 0.5) -> np.ndarray:
@@ -125,7 +129,7 @@ def _segment(robot, tool, q0, q1, t0, t1, pose_at, rod):
         q, t = q0 + s * (q1 - q0), t0 + s * (t1 - t0)
         flange = robot.fk(q)
         hoop = (flange @ tool.T_flange_hoop)[:3, 3]
-        if flange[2, 3] < MIN_FLANGE_HEIGHT or hoop[2] < MIN_HOOP_HEIGHT:
+        if flange[2, 3] - Z_COMPENSATION < MIN_FLANGE_HEIGHT or hoop[2] - Z_COMPENSATION < MIN_HOOP_HEIGHT:
             return [], "approach would go too close to the table"
         if rod is not None:
             local = np.linalg.inv(pose_at(t)) @ np.append(hoop, 1.0)
@@ -218,7 +222,7 @@ def plan(robot, tool: Tool, puzzle: str, T_robot_puzzle_at, q_now, t_now=0.0, sp
         cand = Plan(True, "", traj, phases, tuple(hint))
         poses = [robot.fk(q) for _, q in traj]
         cand.min_flange_z = float(min(T[2, 3] for T in poses))
-        cand.min_hoop_z = float(min((T @ tool.T_flange_hoop)[2, 3] for T in poses))
+        cand.min_hoop_z = float(min((T @ tool.T_flange_hoop)[2, 3] for T in poses)) - Z_COMPENSATION  # planned height
         if cand.min_hoop_z < HOOP_FLOOR - 1e-3:
             last_reason = f"hoop would go to {cand.min_hoop_z * 100:.1f} cm, below the allowed minimum {HOOP_FLOOR * 100:.1f} cm"
             continue
