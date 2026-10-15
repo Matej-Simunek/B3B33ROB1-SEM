@@ -10,10 +10,13 @@ import numpy as np
 
 ARUCO_DICT = cv2.aruco.DICT_4X4_50
 PLATE_SIZE = 0.125
-MARKER_SIZE = 0.040
+MARKER_SIZE = 0.040  # confirmed by measurement
 MARKER_MARGIN = 0.005
 
-# Marker centers in the base frame (marker ids are read from the first real image).
+# Marker ids seen in data/images/02_base_only.png.
+MARKER_IDS = {1: "upper_left", 2: "lower_right"}
+
+# Marker centers in the base frame (from the drawing; NOT yet verified against the real plate).
 MARKER_CENTERS = {
     "upper_left": np.array([MARKER_MARGIN + MARKER_SIZE / 2, PLATE_SIZE - MARKER_MARGIN - MARKER_SIZE / 2]),
     "lower_right": np.array([PLATE_SIZE - MARKER_MARGIN - MARKER_SIZE / 2, MARKER_MARGIN + MARKER_SIZE / 2]),
