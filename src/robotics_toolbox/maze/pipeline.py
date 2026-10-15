@@ -11,7 +11,7 @@ import numpy as np
 from robotics_toolbox.maze import planning
 from robotics_toolbox.maze.aruco_base import detect_markers
 from robotics_toolbox.maze.camera_model import CameraModel
-from robotics_toolbox.maze.executor import ExecutionReport, WallClock, execute
+from robotics_toolbox.maze.executor import ExecutionReport, TimedCRS, WallClock, execute
 from robotics_toolbox.maze.plate_pose import PlateLayout, PlateTracker, marker_world_observation, puzzle_frame
 from robotics_toolbox.maze.table_motion import TableMotion, fit_table_motion, marker_observation
 
@@ -219,7 +219,7 @@ def run(replay: Path | None = None, duration: float = 10.0, fps: float = 5.0, sa
             f"{plan.min_flange_z * 100:.1f} cm above the table. Are these heights physically sensible? "
             "Keep the E-stop at hand. Type 'yes': ") == "yes"
         try:
-            return run_scene(frames, camera, tool, robot, puzzle, q_now, execute_with=robot, confirm=confirm,
+            return run_scene(frames, camera, tool, robot, puzzle, q_now, execute_with=TimedCRS(robot), confirm=confirm,
                              speed_scale=speed_scale)
         finally:
             robot.close()

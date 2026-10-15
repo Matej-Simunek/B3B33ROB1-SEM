@@ -36,3 +36,13 @@ def test_executor_refuses_a_plan_in_the_past():
     robot = SimRobot(crs, clock, crs.q_home, joint_speed_limits(crs, 1.0))
     report = execute(robot, [(10.0, crs.q_home)], clock)
     assert not report.completed and not robot.commands
+
+
+def test_executor_sends_each_waypoint_with_its_planned_duration():
+    crs, clock = CRS93(tty_dev=None), VirtualClock(0.0)
+    sim = SimRobot(crs, clock, crs.q_home, joint_speed_limits(crs, 1.0))
+    sent = []
+    sim.move_to_q_timed = lambda q, seconds: (sent.append(seconds), sim.move_to_q(q))
+    trajectory = [(0.0, crs.q_home), (0.4, crs.q_home + 0.01), (1.0, crs.q_home + 0.02)]
+    assert execute(sim, trajectory, clock).completed
+    assert sent == pytest.approx([0.4, 0.6, 0.5])

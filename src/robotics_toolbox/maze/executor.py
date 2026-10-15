@@ -59,6 +59,30 @@ class SimRobot:
         return self.crs.fk(q)
 
 
+class TimedCRS:
+    """Real CRS robot whose waypoints are sent with a minimal duration (COORDMVT), so that every segment takes the
+    time the plan assigned to it instead of "as fast as possible" (which makes the lag grow on fast joints)."""
+
+    def __init__(self, crs):
+        self.crs = crs
+
+    def get_q(self):
+        return self.crs.get_q()
+
+    def move_to_q(self, q):
+        self.crs.move_to_q(q)
+
+    def move_to_q_timed(self, q, seconds: float):
+        assert self.crs._initialized, "You need to initialize the robot before moving it."
+        assert self.crs.in_limits(q), "Joint limits violated."
+        self.crs._mars.coordmv(self.crs._joint_values_to_irc(q), min_time=max(float(seconds), 0.05))
+
+
+def _send(robot, q, seconds: float) -> None:
+    timed = getattr(robot, "move_to_q_timed", None)
+    timed(q, seconds) if timed is not None else robot.move_to_q(q)
+
+
 @dataclass
 class ExecutionReport:
     completed: bool
@@ -87,7 +111,7 @@ def execute(robot, trajectory, clock=None, max_error=0.15, on_step=None) -> Exec
                 return ExecutionReport(False, f"robot lags {err:.3f} rad behind the plan at waypoint {k}", worst, samples)
         if on_step:
             on_step(k, t, q)
-        robot.move_to_q(q)
+        _send(robot, q, trajectory[k + 1][0] - t if k + 1 < len(trajectory) else 0.5)
         prev_target = q
     clock.sleep(0.5)
     return ExecutionReport(True, "", worst, samples)
