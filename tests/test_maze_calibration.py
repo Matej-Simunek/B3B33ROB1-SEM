@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from ctu_crs import CRS93
 
 from robotics_toolbox.maze.calibration import _ring_centers, fit_calibration
@@ -38,3 +39,16 @@ def test_robust_calibration_rejects_bad_detections():
     result, keep = fit_calibration_robust(robot, qs, pixels)
     assert not keep[3] and not keep[10] and keep.sum() == len(qs) - 2
     assert result.rms_px < 1.5
+
+
+@pytest.mark.parametrize("true_tcp", [[-0.20, 0.15, 0.10], [0.05, -0.25, 0.04], [0.25, 0.0, 0.12]])
+def test_calibration_converges_from_a_wrong_tcp_guess(true_tcp):
+    robot = CRS93(tty_dev=None)
+    cam, rng = true_camera(), np.random.default_rng(2)
+    qs = sample_poses(robot)
+    tcp = np.array(true_tcp)
+    pixels = cam.project(_ring_centers(robot, qs, tcp)) + rng.normal(0, 0.5, (len(qs), 2))
+    result = fit_calibration(robot, qs, pixels)
+    assert result.rms_px < 2.0
+    assert np.linalg.norm(result.tcp[:2] - tcp[:2]) < 0.015
+    assert abs(result.camera.center[2] - 1.17) < 0.05
