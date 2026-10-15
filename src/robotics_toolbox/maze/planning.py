@@ -53,6 +53,8 @@ class Plan:
     trajectory: list = field(default_factory=list)  # [(t, q), ...]
     phases: list = field(default_factory=list)  # phase label per trajectory sample
     hint: tuple = (0.0, 1.0, 0.0)
+    min_hoop_z: float = float("nan")  # lowest hoop center above the table along the trajectory [m]
+    min_flange_z: float = float("nan")
 
     @property
     def duration(self) -> float:
@@ -211,6 +213,9 @@ def plan(robot, tool: Tool, puzzle: str, T_robot_puzzle_at, q_now, t_now=0.0, sp
             continue
         phases = ["approach"] * len(a_traj[:-1]) + ["insert"] * len(f_traj)
         cand = Plan(True, "", traj, phases, tuple(hint))
+        poses = [robot.fk(q) for _, q in traj]
+        cand.min_flange_z = float(min(T[2, 3] for T in poses))
+        cand.min_hoop_z = float(min((T @ tool.T_flange_hoop)[2, 3] for T in poses))
         if best is None or cand.duration < best.duration:
             best = cand
     return best if best is not None else Plan(False, last_reason)

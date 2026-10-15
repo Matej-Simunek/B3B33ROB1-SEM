@@ -24,6 +24,13 @@ výšku příruby nad stolem (≥ 10–12 cm), ne překážky; kolize s tyčkou 
    a TCP obruče vůči přírubě; uloží `data/calibration/camera_robot.json`.
 5. Commitni `data/calibration/`.
 
+## 1b. Výška kroužku pod přírubou (POVINNĚ před ostrým během)
+Kalibrace z obrazu určí svislou vzdálenost kroužku od příruby jen přibližně (± několik cm). Chyba tu znamená, že robot jede
+o tolik níž nebo výš než plán (už se stalo: robot málem narazil do stolu). Změř ji metrem:
+`python scripts/measure_tool.py` – robot stojí (příruba dolů, kroužek vodorovně), zadáš výšku STŘEDU kroužku nad stolem
+v cm; uloží se `data/calibration/tool.json` a `run.py` ho použije. Při dalším ostrém běhu vypisuje nejnižší výšky obruče a
+příruby; porovnej je s realitou (patka puzzle je 6,7 cm nad stolem).
+
 ## 2. Suchý běh (robot se nehýbe)
 `python scripts/run.py --puzzle A` – vyfotí stolek, najde desku, naplánuje trajektorii a vypíše „plan OK“ nebo
 důvod, proč není puzzle dosažitelné (robot se v tom případě nepohne, což zadání chce).

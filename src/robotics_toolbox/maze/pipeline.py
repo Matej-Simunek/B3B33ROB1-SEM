@@ -18,6 +18,7 @@ from robotics_toolbox.maze.table_motion import TableMotion, fit_table_motion, ma
 ROOT = Path(__file__).resolve().parents[3]
 DATA = ROOT / "data" / "sequences"
 CALIBRATION = ROOT / "data" / "calibration" / "camera_robot.json"
+TOOL_Z = ROOT / "data" / "calibration" / "tool.json"  # measured ring height below the flange (scripts/measure_tool.py)
 
 
 # ---------------------------------------------------------------- frames
@@ -59,7 +60,15 @@ def estimate_table_motion(frames) -> TableMotion:
 # ---------------------------------------------------------------- calibrated scene analysis
 def load_calibration(path: Path = CALIBRATION) -> tuple[CameraModel, planning.Tool]:
     camera, extra = CameraModel.load(path)
-    return camera, planning.Tool(np.array(extra["tcp"]))
+    tcp = np.array(extra["tcp"], float)
+    if TOOL_Z.exists():
+        measured = json.loads(TOOL_Z.read_text())["tcp_z"]
+        print(f"tool height below the flange: {measured:.3f} m (measured), calibration said {tcp[2]:.3f} m")
+        tcp[2] = measured
+    else:
+        print(f"WARNING: tool height below the flange is only the calibration estimate ({tcp[2]:.3f} m); "
+              "measure it with scripts/measure_tool.py before moving the robot")
+    return camera, planning.Tool(tcp)
 
 
 class SceneError(RuntimeError):
@@ -112,6 +121,8 @@ def describe_plan(plan: planning.Plan, t_start: float) -> None:
     print(f"plan OK: {len(plan.trajectory)} waypoints, duration {plan.duration:.1f} s"
           + (" (starts with waiting for a reachable table angle)" if waits else ""))
     print(f"  handle direction in the puzzle frame: {np.round(plan.hint, 2)}")
+    print(f"  lowest hoop center {plan.min_hoop_z * 100:.1f} cm and lowest flange {plan.min_flange_z * 100:.1f} cm above the table "
+          "(check against the real heights of the puzzle foot / plate)")
 
 
 @dataclass
@@ -186,7 +197,10 @@ def run(replay: Path | None = None, duration: float = 10.0, fps: float = 5.0, sa
         homed = input("Has the robot been homed since the control unit was powered on? [y/N] (N = it will home now and MOVE) ")
         robot.initialize(home=homed.strip().lower() != "y")
         q_now = robot.get_q()
-        confirm = lambda plan: input(f"Execute {plan.duration:.0f} s trajectory? Keep the E-stop at hand. Type 'yes': ") == "yes"  # noqa: E731
+        confirm = lambda plan: input(  # noqa: E731
+            f"Execute {plan.duration:.0f} s trajectory; lowest hoop center {plan.min_hoop_z * 100:.1f} cm, lowest flange "
+            f"{plan.min_flange_z * 100:.1f} cm above the table. Are these heights physically sensible? "
+            "Keep the E-stop at hand. Type 'yes': ") == "yes"
         try:
             return run_scene(frames, camera, tool, robot, puzzle, q_now, execute_with=robot, confirm=confirm,
                              speed_scale=speed_scale)
