@@ -116,6 +116,8 @@ def make_plan(scene: Scene, robot, tool, puzzle: str, q_now, t_start: float, spe
 def describe_plan(plan: planning.Plan, t_start: float) -> None:
     if not plan.success:
         print(f"NOT REACHABLE / no plan: {plan.reason}")
+        print("Tip: the puzzle is probably too far from (or too close to) the robot. Keep the hoop path within about 35-55 cm "
+              "of the robot base; a stretched elbow (q3 near 0) makes the joints lag.")
         print("The robot will not move.")
         return
     waits = [p for p in plan.phases if p == "wait"]

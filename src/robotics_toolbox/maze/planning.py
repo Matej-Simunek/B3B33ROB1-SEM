@@ -20,6 +20,7 @@ if END_CLEARANCE >= SUCCESS_HEIGHT:
 MIN_FLANGE_HEIGHT = 0.06  # flange above the table [m]
 MIN_HOOP_HEIGHT = HOOP_FLOOR  # hoop center never goes below this height above the table [m]
 TIME_LIMIT = 120.0  # seconds per attempt
+MAX_ELBOW_Q3 = -0.45  # elbow must stay bent (q3 <= this); q3 ~ 0 is the stretched arm = singularity, joints lag there
 MAX_JOINT_STEP = 0.6  # rad between consecutive waypoints; larger means a branch flip
 
 
@@ -80,7 +81,7 @@ class Plan:
 def _ik_in_limits(robot, flange: np.ndarray, tool_height_check=True) -> list[np.ndarray]:
     out = []
     for q in robot.ik(flange):
-        if robot.in_limits(q) and robot.fk(q)[2, 3] >= MIN_FLANGE_HEIGHT:
+        if robot.in_limits(q) and robot.fk(q)[2, 3] >= MIN_FLANGE_HEIGHT and q[2] <= MAX_ELBOW_Q3:
             out.append(q)
     return out
 
