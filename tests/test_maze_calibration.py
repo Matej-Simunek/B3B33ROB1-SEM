@@ -24,3 +24,17 @@ def test_calibration_recovers_camera_and_tcp():
         est = result.camera.backproject(cam.project(truth), 0.033)[0]
         assert np.linalg.norm(est - truth) < 0.004
     assert np.linalg.norm(result.tcp[:2] - TRUE_TCP[:2]) < 0.01
+
+
+def test_robust_calibration_rejects_bad_detections():
+    from robotics_toolbox.maze.calibration import fit_calibration_robust
+
+    robot = CRS93(tty_dev=None)
+    cam, rng = true_camera(), np.random.default_rng(1)
+    qs = sample_poses(robot)
+    pixels = cam.project(_ring_centers(robot, qs, TRUE_TCP)) + rng.normal(0, 0.5, (len(qs), 2))
+    pixels[3] += [150, -90]
+    pixels[10] += [-60, 80]
+    result, keep = fit_calibration_robust(robot, qs, pixels)
+    assert not keep[3] and not keep[10] and keep.sum() == len(qs) - 2
+    assert result.rms_px < 1.5

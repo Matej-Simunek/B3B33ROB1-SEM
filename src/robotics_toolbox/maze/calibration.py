@@ -56,3 +56,17 @@ def fit_calibration(robot, qs, pixels, tcp0=TCP_GUESS, height_sigma=0.02, tcp_z_
     cam, tcp = CameraModel.from_params(best.x[:7]), best.x[7:10]
     err = np.linalg.norm(cam.project(_ring_centers(robot, qs, tcp)) - pixels, axis=1)
     return CalibrationResult(cam, tcp, float(np.sqrt(np.mean(err**2))), float(err.max()))
+
+
+def fit_calibration_robust(robot, qs, pixels, **kwargs):
+    """fit_calibration, then drop samples with a large residual (bad detections) and refit.
+
+    Returns (result, kept_mask).
+    """
+    qs, pixels = np.asarray(qs, float), np.asarray(pixels, float)
+    result = fit_calibration(robot, qs, pixels, **kwargs)
+    err = np.linalg.norm(result.camera.project(_ring_centers(robot, qs, result.tcp)) - pixels, axis=1)
+    keep = err <= max(3.0 * result.rms_px, 3.0)
+    if keep.all() or keep.sum() < 8:
+        return result, np.ones(len(qs), bool) if keep.all() else keep
+    return fit_calibration(robot, qs[keep], pixels[keep], **kwargs), keep
