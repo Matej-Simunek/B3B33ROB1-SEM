@@ -12,6 +12,8 @@ Prostředí: `git pull && python3 -m venv .venv --system-site-packages && source
 5. Vyfoť čistou desku bez obruče: `python scripts/capture_image.py deska` a `python scripts/detect_all.py data/images/deska.png`.
 
 ## 1. Kalibrace kamera → robot (robot se hýbe!)
+**Před začátkem odstraň ze stolu desku s puzzle a vše ostatní.** `jog_to_view.py` a `collect_calibration.py` kontrolují jen
+výšku příruby nad stolem (≥ 10–12 cm), ne překážky; kolize s tyčkou hlídá až plánovač v `run.py`.
 1. Zapni robot (červený vypínač + žlutý Arm Power), E-stop po ruce, klec zavřená.
 2. Obruč na robotu. V pozici `home` míří příruba vodorovně dopředu, kroužek není shora vidět. Spusť
    `python scripts/jog_to_view.py` (příkaz `down` nastaví přírubu dolů, pak `x`/`y`/`z`/`yaw` po malých krocích;

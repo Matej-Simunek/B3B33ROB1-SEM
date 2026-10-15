@@ -1,12 +1,13 @@
 """Interactively place the hoop in the camera view (flange pointing down) before collect_calibration.py.
 
-SAFETY: this MOVES THE ROBOT in small steps you type. Keep the emergency stop at hand, clear the workspace.
+SAFETY: this MOVES THE ROBOT in small steps you type. It knows NOTHING about objects on the table:
+REMOVE the maze plate / puzzle and everything else from the workspace first. Keep the emergency stop at hand, clear the workspace.
 Nothing moves without a typed command; the flange never goes below 12 cm above the table.
 
     python scripts/jog_to_view.py [--no-home] [--speed 0.2]
 
 Commands (meters / degrees, relative to the current pose, flange stays pointing down):
-    down [x y z]   go to a pose with the flange pointing down (default 0.45 0.0 0.25)
+    down [x y z]   go to a pose with the flange pointing down (default 0.45 0.0 0.35)
     x 0.02 | y -0.02 | z 0.03   move along the robot axes
     yaw 15         rotate the hoop around the flange axis
     look           grab an image and report whether the hoop ring is visible and where
@@ -124,7 +125,7 @@ try:
         elif cmd == "save":
             look(save=True)
         elif cmd == "down":
-            x, y, z = vals if len(vals) == 3 else (0.45, 0.0, 0.25)
+            x, y, z = vals if len(vals) == 3 else (0.45, 0.0, 0.35)
             go_down(x, y, z)
             look()
         elif cmd in ("x", "y", "z") and len(vals) == 1:
