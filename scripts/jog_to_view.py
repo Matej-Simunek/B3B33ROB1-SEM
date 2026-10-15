@@ -61,6 +61,35 @@ def go(pose: np.ndarray) -> None:
     print(f"flange now at {robot.fk(robot.get_q())[:3, 3].round(3)} m")
 
 
+def go_down(x: float, y: float, z: float) -> None:
+    """Move to a pose with the flange pointing down. The hoop yaw is free, so pick the one that needs the
+    smallest joint change; the straight joint-space path must stay above MIN_Z. Asks before moving."""
+    q_now = robot.get_q()
+    best = None
+    for yaw in np.linspace(-np.pi, np.pi, 36, endpoint=False):
+        for q in robot.ik(flange_pose(np.array([x, y, z]), yaw)):
+            if not robot.in_limits(q):
+                continue
+            path_z = min(robot.fk(q_now + s * (q - q_now))[2, 3] for s in np.linspace(0, 1, 40))
+            if path_z < MIN_Z:
+                continue
+            change = float(np.max(np.abs(q - q_now)))
+            if best is None or change < best[0]:
+                best = (change, q, yaw)
+    if best is None:
+        print("refused: no reachable pose with a safe path")
+        return
+    change, q, yaw = best
+    print(f"target flange ({x}, {y}, {z}) pointing down, hoop yaw {np.rad2deg(yaw):.0f} deg; "
+          f"largest joint change {change:.2f} rad ({np.rad2deg(change):.0f} deg)")
+    if input("Move there now? [y/N] ").strip().lower() != "y":
+        print("not moved")
+        return
+    robot.move_to_q(q)
+    robot.wait_for_motion_stop()
+    print(f"flange now at {robot.fk(robot.get_q())[:3, 3].round(3)} m")
+
+
 def look(save: bool = False) -> None:
     image = robot.grab_image()
     hoop = detect_hoop(image)
@@ -96,7 +125,7 @@ try:
             look(save=True)
         elif cmd == "down":
             x, y, z = vals if len(vals) == 3 else (0.45, 0.0, 0.25)
-            go(flange_pose(np.array([x, y, z])))
+            go_down(x, y, z)
             look()
         elif cmd in ("x", "y", "z") and len(vals) == 1:
             if abs(vals[0]) > MAX_STEP:
